@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#1e293b">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<title>EduKot – Panel admina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#0f172a;--ink:#e2e8f0;--blue:#38bdf8;--soft:#1e293b;--line:#334155;--muted:#94a3b8;--ok:#4ade80;--bad:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:18px 'Patrick Hand',sans-serif}
+button,input{font:inherit}
+header{background:#020617;color:white;padding:16px max(16px,calc((100% - 980px)/2));display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+header h1{font:700 30px Caveat;margin:0;color:var(--blue)}
+header small{display:block;color:var(--muted)}
+header .sp{flex:1}
+.btn{border:2px solid var(--blue);background:transparent;color:var(--blue);border-radius:10px;padding:7px 12px;cursor:pointer}
+.btn.primary{background:var(--blue);color:#0f172a}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn.warn{border-color:#fbbf24;color:#fbbf24}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.wrap{max-width:980px;margin:auto;padding:20px}
+.card{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.stat{background:#020617;border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:28px;color:var(--blue)}
+label{display:block;margin:8px 0 4px;color:var(--muted)}
+input{width:100%;border:2px solid var(--line);background:#020617;color:var(--ink);border-radius:10px;padding:10px}
+.entry{background:#020617;border:1px solid var(--line);border-radius:12px;padding:12px;margin:8px 0}
+.muted{color:var(--muted)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.hidden{display:none!important}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:14px;border:1px solid var(--line)}
+.notice{border-left:4px solid var(--blue);padding:8px 12px;background:#020617;border-radius:8px;margin:10px 0;color:var(--muted)}
+.error{color:var(--bad)}
+h2{font:700 26px Caveat;color:var(--blue);margin:0 0 10px}
+.foot{text-align:center;color:var(--muted);padding:20px;font-size:14px}
+.tools .btn{margin:4px 0}
+#findResult{margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>EduKot Admin</h1><small>Osobny panel · login + hasło z ENV</small></div>
+  <div class="sp"></div>
+  <button class="btn hidden" id="logout" type="button">Wyloguj</button>
+</header>
+<div class="wrap">
+
+<section id="loginSection">
+  <div class="card">
+    <h2>Wejście</h2>
+    <p class="muted">Podaj login i hasło ustawione w Vercel jako <b>EDUKOT_ADMIN_LOGIN</b> i <b>EDUKOT_ADMIN_PASSWORD</b>.</p>
+    <label for="adminLogin">Login</label>
+    <input id="adminLogin" type="text" autocomplete="username" placeholder="Login admina">
+    <label for="adminPassword">Hasło</label>
+    <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Hasło">
+    <p class="row"><button class="btn primary" id="loginBtn" type="button">Zaloguj</button></p>
+    <div id="loginMsg" class="notice hidden" aria-live="polite"></div>
+  </div>
+  <div class="notice">To osobna strona od panelu nauczyciela i rodzica. Używa tej samej bazy Upstash co reszta EduKot.</div>
+</section>
+
+<section id="panel" class="hidden">
+  <div class="card">
+    <h2>Status systemu</h2>
+    <div class="grid">
+      <div class="stat"><b id="sInv">—</b>Kody (wszystkie)</div>
+      <div class="stat"><b id="sAct">—</b>Aktywne</div>
+      <div class="stat"><b id="sInst">—</b>Natychmiastowe</div>
+      <div class="stat"><b id="sReq">—</b>Prośby pending</div>
+    </div>
+    <p class="muted" id="envStatus"></p>
+    <p class="row"><button class="btn" id="refresh" type="button">Odśwież</button></p>
+  </div>
+
+  <div class="card tools">
+    <h2>Narzędzia (kody synchronizacji)</h2>
+    <p class="muted">Kody zaproszeń służą do synchronizacji rodzica z uczniem. Tu możesz je masowo wyłączać i usuwać.</p>
+    <label for="findCode">Znajdź / usuń konkretny kod</label>
+    <div class="row">
+      <input id="findCode" type="text" placeholder="np. ABC123" style="flex:1;min-width:140px">
+      <button class="btn" id="btnFind" type="button">Znajdź</button>
+      <button class="btn danger" id="btnPurge" type="button">Usuń całkowicie</button>
+    </div>
+    <div id="findResult" class="hidden"></div>
+    <p class="row" style="margin-top:14px">
+      <button class="btn warn" id="btnDeactivateAll" type="button">Wyłącz wszystkie kody</button>
+      <button class="btn danger" id="btnDeleteAllInvites" type="button">Usuń wszystkie kody z listy</button>
+      <button class="btn danger" id="btnClearRequests" type="button">Usuń wszystkie prośby</button>
+    </p>
+    <div id="toolsMsg" class="notice hidden" aria-live="polite"></div>
+  </div>
+
+  <div class="card">
+    <h2>Kody zaproszeń rodziców</h2>
+    <div id="invites">Ładowanie…</div>
+  </div>
+  <div class="card">
+    <h2>Oczekujące prośby</h2>
+    <div id="requests">Ładowanie…</div>
+  </div>
+</section>
+
+</div>
+<div class="foot">EduKot Admin · osobna aplikacja</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const KEY_LOGIN='edukot-admin-login';
+const KEY_PASS='edukot-admin-password';
+const API_BASE=(()=>{try{return localStorage.getItem('edukot-api-base')}catch{return null}})()||'';
+let adminLogin=sessionStorage.getItem(KEY_LOGIN)||'';
+let adminPassword=sessionStorage.getItem(KEY_PASS)||'';
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function url(path){return (API_BASE||'')+path}
+
+async function api(action,extra={},method){
+  const isGet=['summary','invites','requests'].includes(action);
+  const m=method||(isGet?'GET':'POST');
+  const r=await fetch(url('/api/admin')+(isGet?'?action='+encodeURIComponent(action):''),{
+    method:m,
+    headers:{
+      'Content-Type':'application/json',
+      'x-admin-login':adminLogin,
+      'x-admin-password':adminPassword
+    },
+    body:isGet?undefined:JSON.stringify({action,...extra})
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Błąd API');
+  return d;
+}
+
+function showToolsMsg(text,isError){
+  const el=$('#toolsMsg');
+  el.classList.remove('hidden','error');
+  el.textContent=text;
+  if(isError)el.classList.add('error');
+}
+
+async function doLogin(){
+  const msg=$('#loginMsg');
+  msg.classList.remove('hidden','error');
+  adminLogin=$('#adminLogin').value.trim();
+  adminPassword=$('#adminPassword').value;
+  if(!adminLogin||!adminPassword){
+    msg.textContent='Wpisz login i hasło.';
+    msg.classList.add('error');
+    return;
+  }
+  msg.textContent='Sprawdzam…';
+  try{
+    await api('verify');
+    sessionStorage.setItem(KEY_LOGIN,adminLogin);
+    sessionStorage.setItem(KEY_PASS,adminPassword);
+    $('#loginSection').classList.add('hidden');
+    $('#panel').classList.remove('hidden');
+    $('#logout').classList.remove('hidden');
+    await refreshAll();
+  }catch(e){
+    adminLogin='';
+    adminPassword='';
+    sessionStorage.removeItem(KEY_LOGIN);
+    sessionStorage.removeItem(KEY_PASS);
+    msg.textContent=e.message;
+    msg.classList.add('error');
+  }
+}
+
+$('#loginBtn').onclick=doLogin;
+$('#adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+$('#adminLogin').addEventListener('keydown',e=>{if(e.key==='Enter')$('#adminPassword').focus()});
+$('#logout').onclick=()=>{
+  adminLogin='';
+  adminPassword='';
+  sessionStorage.removeItem(KEY_LOGIN);
+  sessionStorage.removeItem(KEY_PASS);
+  $('#panel').classList.add('hidden');
+  $('#loginSection').classList.remove('hidden');
+  $('#logout').classList.add('hidden');
+  $('#adminLogin').value='';
+  $('#adminPassword').value='';
+};
+$('#refresh').onclick=()=>refreshAll();
+
+async function refreshAll(){
+  try{
+    const s=await api('summary');
+    $('#sInv').textContent=s.invitesTotal;
+    $('#sAct').textContent=s.invitesActive;
+    $('#sInst').textContent=s.invitesInstant;
+    $('#sReq').textContent=s.requestsPending;
+    $('#envStatus').innerHTML=
+      (s.hasTeacherPin?'<span class="ok">EDUKOT_TEACHER_PIN widoczny w ENV</span>':'<span class="muted">EDUKOT_TEACHER_PIN nie ustawiony na tej instancji</span>')+
+      ' · '+(s.hasRedis?'<span class="ok">Redis OK</span>':'<span class="bad">Brak Redis</span>');
+  }catch(e){$('#envStatus').textContent=e.message}
+
+  try{
+    const d=await api('invites');
+    $('#invites').innerHTML=d.invites.length?d.invites.map(inv=>`
+      <div class="entry">
+        <b>${esc(inv.code)}</b> · ${esc(inv.childName||'uczeń')}
+        ${inv.childId?`<span class="muted"> · id ${esc(inv.childId)}</span>`:''}
+        ${inv.active?'<span class="tag ok">aktywny</span>':'<span class="tag bad">wyłączony</span>'}
+        ${inv.autoApprove?'<span class="tag">natychmiastowy</span>':'<span class="tag">z potwierdzeniem</span>'}
+        <div class="muted">${inv.createdAt?new Date(inv.createdAt).toLocaleString('pl-PL'):''}</div>
+        <p class="row">
+          <button class="btn" data-toggle="${esc(inv.code)}" data-active="${inv.active?'0':'1'}">${inv.active?'Wyłącz':'Włącz'}</button>
+          <button class="btn danger" data-del="${esc(inv.code)}">Usuń z listy</button>
+          <button class="btn danger" data-purge="${esc(inv.code)}">Usuń całkowicie</button>
+        </p>
+      </div>`).join(''):'<p class="muted">Brak kodów zaproszeń.</p>';
+  }catch(e){$('#invites').textContent=e.message}
+
+  try{
+    const d=await api('requests');
+    $('#requests').innerHTML=d.requests.length?d.requests.map(q=>`
+      <div class="entry">
+        <b>${esc(q.parentName)}</b> · kod ${esc(q.inviteCode)}
+        ${q.childName?` · ${esc(q.childName)}`:''}
+        ${q.contact?`<div class="muted">${esc(q.contact)}</div>`:''}
+        <div class="muted">${q.createdAt?new Date(q.createdAt).toLocaleString('pl-PL'):''}</div>
+        <p class="row"><button class="btn danger" data-reject="${esc(q.id)}">Odrzuć</button></p>
+      </div>`).join(''):'<p class="muted">Brak oczekujących próśb.</p>';
+  }catch(e){$('#requests').textContent=e.message}
+}
+
+// Narzędzia
+$('#btnFind').onclick=async()=>{
+  const code=$('#findCode').value.trim();
+  const box=$('#findResult');
+  box.classList.remove('hidden');
+  if(!code){box.innerHTML='<p class="bad">Wpisz kod.</p>';return}
+  box.innerHTML='Szukam…';
+  try{
+    const d=await api('find-invite',{code});
+    const inv=d.invite;
+    box.innerHTML=`
+      <div class="entry">
+        <b>${esc(inv.code)}</b> · ${esc(inv.childName||'uczeń')}
+        ${inv.childId?`<span class="muted"> · id ${esc(inv.childId)}</span>`:''}
+        ${inv.active?'<span class="tag ok">aktywny</span>':'<span class="tag bad">wyłączony</span>'}
+        ${inv.autoApprove?'<span class="tag">natychmiastowy</span>':'<span class="tag">z potwierdzeniem</span>'}
+        <div class="muted">${inv.createdAt?new Date(inv.createdAt).toLocaleString('pl-PL'):''}</div>
+      </div>`;
+  }catch(e){box.innerHTML=`<p class="bad">${esc(e.message)}</p>`}
+};
+
+$('#btnPurge').onclick=async()=>{
+  const code=$('#findCode').value.trim();
+  if(!code){showToolsMsg('Wpisz kod do usunięcia.',true);return}
+  if(!confirm('Usunąć kod „'+code+'” całkowicie z bazy? Nie da się cofnąć.'))return;
+  try{
+    await api('purge-invite',{code});
+    showToolsMsg('Usunięto kod: '+code);
+    $('#findResult').classList.add('hidden');
+    await refreshAll();
+  }catch(e){showToolsMsg(e.message,true)}
+};
+
+$('#btnDeactivateAll').onclick=async()=>{
+  if(!confirm('Wyłączyć WSZYSTKIE kody zaproszeń? Rodzice nie będą mogli ich użyć.'))return;
+  try{
+    const d=await api('deactivate-all-invites');
+    showToolsMsg('Wyłączono kodów: '+d.deactivated);
+    await refreshAll();
+  }catch(e){showToolsMsg(e.message,true)}
+};
+
+$('#btnDeleteAllInvites').onclick=async()=>{
+  if(!confirm('Usunąć WSZYSTKIE kody z listy i je wyłączyć? Tej operacji nie da się cofnąć.'))return;
+  try{
+    const d=await api('delete-all-invites');
+    showToolsMsg('Usunięto z listy: '+d.removed);
+    await refreshAll();
+  }catch(e){showToolsMsg(e.message,true)}
+};
+
+$('#btnClearRequests').onclick=async()=>{
+  if(!confirm('Odrzucić i usunąć WSZYSTKIE oczekujące prośby rodziców?'))return;
+  try{
+    const d=await api('clear-all-requests');
+    showToolsMsg('Usunięto próśb: '+d.cleared);
+    await refreshAll();
+  }catch(e){showToolsMsg(e.message,true)}
+};
+
+document.addEventListener('click',async e=>{
+  const t=e.target;
+  try{
+    if(t.dataset?.toggle){
+      await api('toggle-invite',{code:t.dataset.toggle,active:t.dataset.active==='1'});
+      await refreshAll();
+    }
+    if(t.dataset?.del){
+      if(!confirm('Usunąć kod z listy i wyłączyć go?'))return;
+      await api('delete-invite',{code:t.dataset.del});
+      await refreshAll();
+    }
+    if(t.dataset?.purge){
+      if(!confirm('Usunąć kod „'+t.dataset.purge+'” całkowicie z bazy?'))return;
+      await api('purge-invite',{code:t.dataset.purge});
+      await refreshAll();
+    }
+    if(t.dataset?.reject){
+      await api('reject-request',{requestId:t.dataset.reject});
+      await refreshAll();
+    }
+  }catch(err){alert(err.message)}
+});
+
+if(adminLogin&&adminPassword){
+  api('verify').then(()=>{
+    $('#loginSection').classList.add('hidden');
+    $('#panel').classList.remove('hidden');
+    $('#logout').classList.remove('hidden');
+    refreshAll();
+  }).catch(()=>{
+    sessionStorage.removeItem(KEY_LOGIN);
+    sessionStorage.removeItem(KEY_PASS);
+    adminLogin='';
+    adminPassword='';
+  });
+}
+
+if('serviceWorker'in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').then(reg=>{
+      reg.update();
+      setInterval(()=>reg.update(),60*60*1000);
+    }).catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
